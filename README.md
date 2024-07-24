@@ -1,4 +1,5 @@
 # Bind Manager
+[![Rust](https://github.com/TransDeveloper/bind_manager/actions/workflows/rust.yml/badge.svg)](https://github.com/TransDeveloper/bind_manager/actions/workflows/rust.yml)
 ### What is Bind Manager?
 Bind Manager is a tool in progress to aid you with BIND9 configuration. Right now, it only manages blocklists, but it will be expanded to manage other configurations as well.
 
