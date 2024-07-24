@@ -134,6 +134,18 @@ fn remove_domain(domain: &str) -> io::Result<()> {
 }
 
 fn reload_bind() -> io::Result<()> {
+    // Check if rndc exists
+    let check_rndc = std::process::Command::new("sh")
+        .arg("-c")
+        .arg("which rndc")
+        .output()?;
+
+    if !check_rndc.status.success() {
+        println!("Warning! RNDC does not exist - will skip reload.");
+        return Ok(());
+    }
+
+    // Existing logic to reload BIND
     let output = std::process::Command::new("rndc").arg("reload").output()?;
     if output.status.success() {
         println!("BIND reloaded successfully.");
@@ -171,7 +183,7 @@ fn list_domains() -> io::Result<()> {
     // add padding to the right of the domain name
     let max_len = listed_domains.iter().map(|d| d.len()).max().unwrap_or(0);
 
-    for (i, domain) in listed_domains.iter().enumerate() {
+    for (_i, domain) in listed_domains.iter().enumerate() {
         // println!(" - {} » {}", domain, reasons_map.get(domain).unwrap_or(&"No reason provided.".to_string()));
         println!(" - {:<width$} » {}", domain, reasons_map.get(domain).unwrap_or(&"No reason provided.".to_string()), width = max_len);
     }
