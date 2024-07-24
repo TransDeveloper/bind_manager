@@ -29,6 +29,7 @@ enum Cli {
 
 const ZONES_FILE_PATH: &str = "/etc/bind/blacklisted.zones";
 const REASON_LOG_PATH: &str = "/etc/bind/reason_log.json";
+const BLACKLIST_ZONE: &str = "/etc/bind/zones/master/blockeddomains.db";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DomainEntry {
@@ -90,7 +91,7 @@ fn add_domain(domain: &str, reason: &str) -> io::Result<()> {
         entries.push(entry);
 
         // Append the domain to the zones file
-        let entry_format = format!("zone \"{}\" {{type master; file \"/etc/bind/zones/master/blockeddomains.db\";}};\n\n", domain);
+        let entry_format = format!("zone \"{}\" {{type master; file \"{}\";}};\n\n", domain, BLACKLIST_ZONE);
         let mut file = OpenOptions::new().append(true).open(ZONES_FILE_PATH)?;
         file.write_all(entry_format.as_bytes())?;
 
