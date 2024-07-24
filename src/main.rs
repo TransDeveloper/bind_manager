@@ -99,6 +99,7 @@ fn add_domain(domain: &str, reason: &str) -> io::Result<()> {
 
     // Save the updated entries back to the reason_log.json file
     save_reason_log(&entries)?;
+    reload_bind()?;
 
     Ok(())
 }
@@ -127,6 +128,18 @@ fn remove_domain(domain: &str) -> io::Result<()> {
         println!("Domain not found.");
     }
 
+    reload_bind()?;
+
+    Ok(())
+}
+
+fn reload_bind() -> io::Result<()> {
+    let output = std::process::Command::new("rndc").arg("reload").output()?;
+    if output.status.success() {
+        println!("BIND reloaded successfully.");
+    } else {
+        println!("Failed to reload BIND.");
+    }
     Ok(())
 }
 
@@ -154,8 +167,13 @@ fn list_domains() -> io::Result<()> {
     listed_domains.sort();
 
     // Print the domains with reasons
+    println!("Listing {} {}:", listed_domains.len(), if listed_domains.len() == 1 { "domain" } else { "domains" });
+    // add padding to the right of the domain name
+    let max_len = listed_domains.iter().map(|d| d.len()).max().unwrap_or(0);
+
     for (i, domain) in listed_domains.iter().enumerate() {
-        println!("{} {} - {}", i, domain, reasons_map.get(domain).unwrap_or(&"No reason provided.".to_string()));
+        // println!(" - {} » {}", domain, reasons_map.get(domain).unwrap_or(&"No reason provided.".to_string()));
+        println!(" - {:<width$} » {}", domain, reasons_map.get(domain).unwrap_or(&"No reason provided.".to_string()), width = max_len);
     }
 
     Ok(())
