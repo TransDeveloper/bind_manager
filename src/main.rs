@@ -20,8 +20,8 @@ enum Cli {
         reason: String,
     },
     Del {
-        #[structopt(help = "The index of the domain to be removed.")]
-        index: usize,
+        #[structopt(help = "The domain to be removed.")]
+        domain: String,
     },
     List,
     About
@@ -41,7 +41,7 @@ fn main() -> io::Result<()> {
 
     match args {
         Cli::Add { domain, reason } => add_domain(&domain, &reason)?,
-        Cli::Del { index } => remove_domain(index)?,
+        Cli::Del { domain } => remove_domain(&domain)?,
         Cli::List => list_domains()?,
         Cli::About => about(),
     }
@@ -79,47 +79,54 @@ fn save_reason_log(entries: &Vec<DomainEntry>) -> io::Result<()> {
 fn add_domain(domain: &str, reason: &str) -> io::Result<()> {
     let mut entries = load_reason_log()?;
 
-    if entries.iter().any(|entry| entry.domain == domain) {
-        println!("Domain {} is already in the blacklist.", domain);
-        return Ok(());
+    // Check if the domain already exists
+    if let Some(entry) = entries.iter_mut().find(|entry| entry.domain == domain) {
+        // Update the reason for the existing domain
+        entry.reason = reason.to_string();
+        println!("Record already exists, updated reason for domain {}.", domain);
+    } else {
+        // Add the new domain entry
+        let entry = DomainEntry { domain: domain.to_string(), reason: reason.to_string() };
+        entries.push(entry);
+
+        // Append the domain to the zones file
+        let entry_format = format!("zone \"{}\" {{type master; file \"/etc/bind/zones/master/blockeddomains.db\";}};\n\n", domain);
+        let mut file = OpenOptions::new().append(true).open(ZONES_FILE_PATH)?;
+        file.write_all(entry_format.as_bytes())?;
+
+        println!("Domain {} added to blacklist.", domain);
     }
 
-    let entry = format!("zone \"{}\" {{type master; file \"/etc/bind/zones/master/blockeddomains.db\";}};\n\n", domain);
-
-    let mut file = OpenOptions::new().append(true).open(ZONES_FILE_PATH)?;
-    file.write_all(entry.as_bytes())?;
-
-    entries.push(DomainEntry { domain: domain.to_string(), reason: reason.to_string() });
+    // Save the updated entries back to the reason_log.json file
     save_reason_log(&entries)?;
 
-    println!("Domain {} added to blacklist.", domain);
     Ok(())
 }
 
-fn remove_domain(index: usize) -> io::Result<()> {
+fn remove_domain(domain: &str) -> io::Result<()> {
     let mut entries = load_reason_log()?;
-    if index >= entries.len() {
-        println!("Index out of bounds.");
-        return Ok(());
-    }
+    let index = entries.iter().position(|entry| entry.domain == domain);
 
-    let domain = entries[index].domain.clone(); // Clone the domain to avoid borrowing issues
-    entries.remove(index);
-    save_reason_log(&entries)?;
+    if let Some(idx) = index {
+        entries.remove(idx);
+        save_reason_log(&entries)?;
+    }
 
     let path = Path::new(ZONES_FILE_PATH);
     let file = OpenOptions::new().read(true).open(&path)?;
     let reader = BufReader::new(file);
 
-    let lines: Vec<String> = reader
-        .lines()
-        .filter_map(|line| line.ok())
-        .filter(|line| !line.contains(&domain)) // Use the cloned domain
-        .collect();
+    // Collect lines once to avoid "value used after move" error
+    let all_lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let filtered_lines: Vec<String> = all_lines.iter().filter(|line| !line.contains(domain)).cloned().collect();
 
-    fs::write(&path, lines.join("\n"))?;
+    if filtered_lines.len() < all_lines.len() {
+        fs::write(&path, filtered_lines.join("\n"))?;
+        println!("Domain {} removed from blacklist.", domain);
+    } else if index.is_none() {
+        println!("Domain not found.");
+    }
 
-    println!("Domain {} removed from blacklist.", domain);
     Ok(())
 }
 
